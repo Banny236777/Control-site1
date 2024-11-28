@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receiver Website - Persistent Buttons</title>
+    <script src="https://cdn.jsdelivr.net/npm/ably/browser/static/ably.min.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+   <link href="https://fonts.googleapis.com/css2?family=Rosarivo&display=swap" rel="stylesheet">
+    <style>
+        /* Page Styles */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            color: #ff4444;
+            animation: backgroundAnimation 10s infinite;
+        }
+
+        @keyframes backgroundAnimation {
+            0% { background: linear-gradient(45deg, #ff9a9e, #fad0c4); }
+            25% { background: linear-gradient(45deg, #a1c4fd, #c2e9fb); }
+            50% { background: linear-gradient(45deg, #fbc2eb, #a6c1ee); }
+            75% { background: linear-gradient(45deg, #fdcbf1, #e6dee9); }
+            100% { background: linear-gradient(45deg, #ff9a9e, #fad0c4); }
+        }
+
+        h1 {
+            color: #ffffff;
+            text-shadow: 0 0 10px #0003cf, 0 0 20px #202020, 0 0 30px #202020;
+            animation: flicker 2s infinite;
+            font-size: 48px;
+        margin-left: 10px;
+      margin-top: -63%;
+        }
+
+        @keyframes flicker {
+            0%, 19%, 21%, 23%, 25%, 56%, 100% {
+                opacity: 1;
+            }
+            20%, 24%, 55% {
+                opacity: 0.8;
+            }
+        }
+
+        #button-list-container {
+            width: 90%;
+            max-height: 60vh;
+            overflow-y: auto;
+            border: 2px solid #ff4444;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 15px;
+            box-shadow: 0 0 15px #ff0000;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #button-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        button {
+            margin: 0;
+            padding: 10px 15px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffffff;
+            background-color: #828282;
+            border: 1.4px solid #ff4444;
+            border-radius: 19px;
+            
+            box-shadow: 0 0 10px #990000, inset 0 0 5px #330000;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+       
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px #ff5555, inset 0 0 10px #550000;
+        }
+
+        button.clicked {
+            border-color: #2ecc71;
+            background-color: #27ae60;
+        }
+
+        .material-icons {
+            font-size: 18px;
+            color: #ffffff;
+        }
+
+        /* Add subtle floating animation */
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        h1, #button-list-container {
+            animation: float 3s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h1>The Pain 💔😭</h1>
+        <div id="button-list-container">
+            <div id="button-list">
+                <!-- Buttons will be dynamically added here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+       // Initialize Ably
+        const ably = new Ably.Realtime("7l-9Sg.1xpmcw:SFC8SBTzvUZ4ugXaBkxQP7AzBBV1DabC5_GXLEuSlPk"); // Replace with your Ably API key
+        const channel = ably.channels.get("payment_channel");
+
+        // Object to persist button data and clicked state
+        const buttonStorage = JSON.parse(localStorage.getItem("buttonStorage")) || {};
+
+        // Save the current state of buttons to localStorage
+        function saveButtons() {
+            localStorage.setItem("buttonStorage", JSON.stringify(buttonStorage));
+        }
+
+        // Add a button dynamically for every message received
+        function addButton(ip, deviceId, status) {
+            // Avoid duplicating buttons
+            if (document.querySelector(`button[data-device-id="${deviceId}"]`)) return;
+
+            // Store button data in localStorage if not already present
+            if (!buttonStorage[deviceId]) {
+                buttonStorage[deviceId] = { ip, status, clicked: false };
+                saveButtons();
+            }
+
+            const buttonList = document.getElementById("button-list");
+            const button = document.createElement("button");
+            button.textContent = `IP: ${ip}, Device ID: ${deviceId}, Status: ${status}`;
+        button.style.backgroundColor = status === "Waiting for payment" ? "#f39c12" : "#2ecc71";   
+            button.dataset.deviceId = deviceId;
+
+            // Apply clicked style if the button was clicked before
+            if (buttonStorage[deviceId].clicked) {
+                button.classList.add("clicked");
+           
+                button.style.borderColor = "#2ecc71";
+                const tickIcon = document.createElement("span");
+                tickIcon.className = "material-icons";
+                tickIcon.textContent = "check_circle"; // Tick icon
+                button.textContent = ""; // Clear text
+                button.appendChild(tickIcon);
+                button.appendChild(document.createTextNode(" Signal Sent 😭")); // Add text
+                 
+                 
+            }
+
+            // On button click, send a signal to the sender and mark it as clicked
+            button.onclick = function () {
+                const senderChannel = ably.channels.get(`channel-${deviceId}`);
+                senderChannel.publish("display_container", { message: "Show container" }, () => {
+                    console.log(`Signal sent to Device ID: ${deviceId}`);
+                    
+                    // Update clicked state and apply styles
+                    buttonStorage[deviceId].clicked = true;
+                    saveButtons();
+                    button.classList.add("clicked");
+                    button.style.borderColor = "#2ecc71";
+                    const tickIcon = document.createElement("span");
+                    tickIcon.className = "material-icons";
+                    tickIcon.textContent = "check_circle"; // Tick icon
+                    button.textContent = ""; // Clear text
+                    button.appendChild(tickIcon);
+                    button.appendChild(document.createTextNode(" Signal Sent")); // Add text
+                });
+            };
+
+            // Prepend button to the list
+            buttonList.prepend(button);
+        }
+
+        // Load buttons from localStorage on page load
+        function loadStoredButtons() {
+            Object.keys(buttonStorage).forEach(deviceId => {
+                const { ip, status } = buttonStorage[deviceId];
+                addButton(ip, deviceId, status);
+            });
+        }
+
+        // Fetch all historical messages and listen for updates
+        window.onload = function () {
+            loadStoredButtons();
+
+            channel.history({ limit: 100 }, (err, result) => {
+                if (err) {
+                    console.error("Error fetching history:", err);
+                    return;
+                }
+
+                // Add buttons for all historical messages
+                result.items.forEach(message => {
+                    const { ip, device_id, status } = message.data;
+                    addButton(ip, device_id, status);
+                });
+            });
+        };
+
+        // Subscribe to real-time updates
+        channel.subscribe((message) => {
+            if (message.name === "ip_address" || message.name === "payment_status") {
+                const { ip, device_id, status } = message.data;
+                addButton(ip, device_id, status);
+            }
+        });
+    </script>
+</body>
+</html>
